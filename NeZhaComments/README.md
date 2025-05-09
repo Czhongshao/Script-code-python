@@ -262,6 +262,8 @@ ___
     ```bash
         # 注意此时请切换到对应用户下
         su hadoop
+        # 切换到工作文件夹下（非必要）
+        cd /usr/local
         # 检验hadoop安装是否成功
         hadoop version
     ```
@@ -271,18 +273,83 @@ ___
     ```bash
         # 1. 启动ssh
         sudo service ssh start
-        # 2. 格式化namenode
+        # 2. 格式化namenode(只执行一遍即可，若是重复执行，需要参考下述部分的tips)
         hdfs namenode -format
         # 3. 启动hdfs
         start-all.sh
+        ## 或
+        start-dfs.sh
+        start-yarn.sh
         # 4. 进程查询
         jps
+        # 5. 结束指令
+        stop-all.sh
+        ## 或
+        stop-dfs.sh
+        stop-yarn.sh
+
+        *正常应该有六个进程*
+        4533 Jps
+        3049 DataNode
+        2826 NameNode
+        3307 SecondaryNameNode
+        4172 NodeManager
+        3774 ResourceManager
+        ## tips: 若缺失DataNode：(https://blog.csdn.net/qq_45069279/article/details/111559319) (https://blog.csdn.net/donoot/article/details/109777398)
+
         # 5. 打开浏览器查看
         http://localhost:9870/
-        
+
         http://localhost:8088/
     ```
 
+___
+
+## 三、HBase
+
+### 安装HBase - 2.6.2
+
+- **下载压缩包**
+
+    ```bash
+        # 方法1：windows本地下载后通过xshell传输给ubuntu服务器
+        **清华大学镜像站：(https://mirrors.tuna.tsinghua.edu.cn/apache/hbase/)**
+
+        # 方法2：通过指令下载到/home/hadoop路径下，需要先进入hadoop用户
+        cd ~
+        pwd
+        # hadoop@ZhongShao:~$ pwd
+        # /home/hadoop
+
+        wget https://mirrors.tuna.tsinghua.edu.cn/apache/hbase/2.6.2/hbase-2.6.2-bin.tar.gz
+    ```
+
+- **解压文件**
+
+    ```bash
+        # 解压到/usr/local路径下
+        sudo tar -zxf ~/hbase-2.6.2-bin.tar.gz -C /usr/local
+        cd /usr/local
+
+        # 更改文件名为hbase
+        sudo mv ./hbase-2.6.2/ ./hbase
+
+        # 更改HBase权限
+        sudo chown -R hadoop ./hbase
+    ```
+
+- **编辑环境变量**
+
+    ```bash
+        # 编辑配置文件
+        sudo vim ~/.bashrc
+        
+        # HBASE
+        export PATH=$PATH:/usr/local/hbase/bin
+
+        # 更新环境变量
+        source ~/.bashrc
+    ```
 
 `status`
 

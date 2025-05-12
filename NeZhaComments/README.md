@@ -273,7 +273,7 @@ ___
     ```bash
         # 1. 启动ssh
         sudo service ssh start
-        # 2. 格式化namenode(只执行一遍即可，若是重复执行，需要参考下述部分的tips)
+        # 2. 格式化namenode(只执行一次即可，若是重复执行，需要参考下述部分的tips)
         hdfs namenode -format
         # 3. 启动hdfs
         start-all.sh
@@ -351,6 +351,100 @@ ___
         source ~/.bashrc
     ```
 
-`status`
+- **HBase伪分布模式设置**
 
-___
+    ```bash
+        # HBase有三种运行模式，单机模式、伪分布模式、分布式模式。
+        ## 需要以下条件
+        JDK
+        Hadoop (伪分布式模式需要) 
+        SSH
+    ```
+
+    ```bash
+        # 1. 配置 hbase-env.sh
+        vim /usr/local/hbase/conf/hbase-env.sh
+
+        export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+        export HBASE_CLASSPATH=/usr/local/hadoop/conf 
+        export HBASE_MANAGES_ZK=true
+
+        # 2. 配置 hbase-site.xml
+        vim /usr/local/hbase/conf/hbase-site.xml
+
+        1. 修改hbase.rootdir，指定HBase数据在HDFS上的存储路径
+        2. 将属性hbase.cluter.distributed设置为true
+        3. 假设当前Hadoop集群运行在伪分布式模式下，在本机上运行，且NameNode运行在9000端口
+        4. 设置Zookeeper状态
+
+        <configuration>
+            <!-- 定义HBase是否以分布式模式运行 -->
+            <property>
+                <name>hbase.cluster.distributed</name>
+                <value>true</value>
+            </property>
+            <!-- HBase的临时文件存储位置 -->
+            <property>
+                <name>hbase.tmp.dir</name>
+                <value>./tmp</value>
+            </property>
+            <!-- 控制HBase是否检查Hadoop文件系统的流能力 -->
+            <property>
+                <name>hbase.unsafe.stream.capability.enforce</name>
+                <value>false</value>
+            </property>
+            <!-- HBase数据的HDFS根目录 -->
+            <property>
+                <name>hbase.rootdir</name>
+                <value>hdfs://localhost:9000/hbase</value>
+            </property>
+            <!-- HBase使用的ZooKeeper集群的主机名列表 -->
+            <property>
+                <name>hbase.zookeeper.quorum</name>
+                <value>localhost</value>
+            </property>
+        </configuration>
+
+        # 3. 测试运行HBase
+            # 1. 切换到 hadoop 用户
+            su hadoop
+            # 2. 登陆ssh
+            ssh localhost
+            # 3. 切换目录
+            cd /usr/local
+            # 4. 启动hadoop
+            start-dfs.sh
+            # 5. 检查进程
+            jps
+
+            14177 SecondaryNameNode
+            13909 DataNode
+            14713 Jps
+            13689 NameNode
+
+            # 6. 启动hbase
+            start-hbase.sh
+
+            22934 HMaster
+            31094 SecondaryNameNode
+            30614 NameNode
+            22680 HQuorumPeer
+            30829 DataNode
+            23197 HRegionServer
+            23710 Jps
+
+            ## tips: 出现报错如下
+
+            `SLF4J: Class path contains multiple SLF4J bindings.`
+            `SLF4J: Found binding in [jar:file:/usr/local/hbase/lib/client-facing-thirdparty/log4j-slf4j-impl-2.17.2.jar!/org/slf4j/impl/StaticLoggerBinder.class]`
+            `SLF4J: Found binding in [jar:file:/usr/local/hadoop/share/hadoop/common/lib/slf4j-reload4j-1.7.36.jar!/org/slf4j/impl/StaticLoggerBinder.class]`
+            `SLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.`
+            `SLF4J: Actual binding is of type [org.apache.logging.slf4j.Log4jLoggerFactory]`
+
+            ## 为jar包冲突情况
+            
+            移除`slf4j-reload4j-1.7.36.jar`即可
+            sudo rm /usr/local/hadoop/share/hadoop/common/lib/slf4j-reload4j-1.7.36.jar
+
+
+    ```

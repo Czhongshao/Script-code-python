@@ -1,15 +1,27 @@
 import sys
 from collections import defaultdict
 
-def reduce_function():
-    count_dict = defaultdict(int)
-    for line in sys.stdin:
-        line = line.strip()
-        rating, count = line.split('\t')
-        count_dict[rating] += int(count)
-    
-    for rating, count in count_dict.items():
-        print(f"{rating}\t{count}")
+def reduce_function(user, counts):
+    total_comments = sum(counts)
+    print(f"{user}\t{total_comments}")
 
 if __name__ == "__main__":
-    reduce_function()
+    current_user = None
+    counts = []
+
+    for line in sys.stdin:
+        user, count = line.strip().split('\t')
+        count = int(count)
+
+        if user != current_user:
+            if current_user:
+                for key, value in reduce_function(current_user, counts):
+                    print(f"{key}\t{value}")
+            current_user = user
+            counts = []
+
+        counts.append(count)
+
+    if current_user:
+        for key, value in reduce_function(current_user, counts):
+            print(f"{key}\t{value}")

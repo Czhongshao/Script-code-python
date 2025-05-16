@@ -45,12 +45,13 @@ ___
         # 1. 更新apt源
         sudo apt-get update
 
-        # 2. 安装ssh服务端
+        # 2. 安装ssh并且启动服务端
         sudo apt-get install openssh-server
+        sudo service ssh start
 
         # 3. 登录本机(依次输入yes、密码)
         ssh localhost
-
+        
         # 4. 退出ssh
         exit
 
@@ -362,12 +363,19 @@ ___
     ```
 
     ```bash
+        # 0. 复制 htrace 的 jar 包到 hbase 的 lib 路径下 (https://blog.csdn.net/Y_6155/article/details/110455338)
+        cp /usr/local/hbase/lib/client-facing-thirdparty/htrace-core4-4.1.0-incubating.jar /usr/local/hbase/lib/
+
         # 1. 配置 hbase-env.sh
         vim /usr/local/hbase/conf/hbase-env.sh
 
+        #JAVA
         export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
-        export HBASE_CLASSPATH=/usr/local/hadoop/conf 
+        export HBASE_CLASSPATH=/usr/local/hadoop/conf
         export HBASE_MANAGES_ZK=true
+
+        #Not Use Norm Zookpeer
+        export HBASE_DISABLE_HADOOP_CLASSPATH_LOOKUP="true"
 
         # 2. 配置 hbase-site.xml
         vim /usr/local/hbase/conf/hbase-site.xml
@@ -376,6 +384,7 @@ ___
         2. 将属性hbase.cluter.distributed设置为true
         3. 假设当前Hadoop集群运行在伪分布式模式下，在本机上运行，且NameNode运行在9000端口
         4. 设置Zookeeper状态
+        5. 配置Thrift服务
 
         <configuration>
             <!-- 定义HBase是否以分布式模式运行 -->
@@ -383,25 +392,35 @@ ___
                 <name>hbase.cluster.distributed</name>
                 <value>true</value>
             </property>
-            <!-- HBase的临时文件存储位置 -->
-            <property>
-                <name>hbase.tmp.dir</name>
-                <value>./tmp</value>
-            </property>
-            <!-- 控制HBase是否检查Hadoop文件系统的流能力 -->
-            <property>
-                <name>hbase.unsafe.stream.capability.enforce</name>
-                <value>false</value>
-            </property>
+            
             <!-- HBase数据的HDFS根目录 -->
             <property>
                 <name>hbase.rootdir</name>
                 <value>hdfs://localhost:9000/hbase</value>
             </property>
+            
             <!-- HBase使用的ZooKeeper集群的主机名列表 -->
             <property>
                 <name>hbase.zookeeper.quorum</name>
                 <value>localhost</value>
+            </property>
+            
+            <!-- ZooKeeper客户端端口 -->
+            <property>
+                <name>hbase.zookeeper.property.clientPort</name>
+                <value>2181</value>
+            </property>
+            
+            <!-- Thrift服务的监听地址 -->
+            <property>
+                <name>hbase.thrift.bind.address</name>
+                <value>localhost</value>
+            </property>
+            
+            <!-- Thrift服务的监听端口 -->
+            <property>
+                <name>hbase.thrift.port</name>
+                <value>9090</value>
             </property>
         </configuration>
 
@@ -409,29 +428,33 @@ ___
             # 1. 切换到 hadoop 用户
             su hadoop
             # 2. 登陆ssh
+            sudo service ssh start
             ssh localhost
-            # 3. 切换目录
-            cd /usr/local
-            # 4. 启动hadoop
+            # 3. 启动 Hadoop 分布式文件系统（HDFS）的守护进程
             start-dfs.sh
-            # 5. 检查进程
-            jps
+            ## jps 查看进程
+            1304 DataNode              # 管理文件系统的元数据，负责文件和目录的命名空间
+            1578 SecondaryNameNode     # 辅助 NameNode，定期合并编辑日志和文件系统镜像，减轻 NameNode 的负担
+            1087 NameNode              # 存储实际的数据块，负责数据的存储和读取
 
-            14177 SecondaryNameNode
-            13909 DataNode
-            14713 Jps
-            13689 NameNode
+            # 4. 启动 YARN 的守护进程
+            start-yarn.sh
+            ## jps 查看进程
+            2373 NodeManager           # 运行在每个节点上，管理单个节点的资源和任务
+            2173 ResourceManager       # 管理集群资源，负责资源的分配和调度
 
             # 6. 启动hbase
             start-hbase.sh
+            ## jps 查看进程
+            5536 HRegionServer         # 负责管理 Region，处理客户端的读写请求，确保数据的存储和读取
+            5160 HQuorumPeer           # 作为 ZooKeeper 的部分，提供分布式协调服务，管理员数据，监控节点状态，确保集群的高可用性和一致性
+            5342 HMaster               # 作为 Hbase的主节点，管理原数据，分配 Region，监控集群状态，确保集群的正常运行和高可用性
+            9146 ThriftServer          # 启动 Thrift 服务器，通过 Thrift 协议提供 HBase 的接口
 
-            22934 HMaster
-            31094 SecondaryNameNode
-            30614 NameNode
-            22680 HQuorumPeer
-            30829 DataNode
-            23197 HRegionServer
-            23710 Jps
+            # 若是服务未启动，需要额外启动
+            # 启动 thrift、regionserver 服务
+            hbase-daemon.sh start thrift
+            hbase-daemon.sh start regionserver
 
             ## tips: 出现报错如下
 
@@ -445,6 +468,27 @@ ___
             
             移除`slf4j-reload4j-1.7.36.jar`即可
             sudo rm /usr/local/hadoop/share/hadoop/common/lib/slf4j-reload4j-1.7.36.jar
-
-
     ```
+
+## 四、配置Miniconda
+
+### 安装 Miniconda - 222
+
+- **配置conda环境变量**
+
+```bash
+    # 切换到对应用户
+    su hadoop
+
+    # 编辑环境变量
+    vim ~/.bashrc
+
+    # <<< conda initialize <<<
+    export PATH=/home/zhongshao/miniconda3/bin:$PATH
+
+    # 更新环境变量
+    source ~/.bashrc
+
+```
+
+
